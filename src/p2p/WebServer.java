@@ -10,6 +10,7 @@ import java.util.*;
 public class WebServer implements Runnable {
 	Socket conn;
 	static Map<String, String> file_table;
+	static ArrayList<String> peer_filenames;
 	
 	WebServer(Socket sock) {
 		this.conn = sock;
@@ -27,9 +28,11 @@ public class WebServer implements Runnable {
 		InetAddress ip = InetAddress.getLocalHost();
 		port = Integer.parseInt(args[1]);
 		file_table = new HashMap<String, String>();
-		file_table.put("local.html", "<html><head><title>Local Page</title></head><body><p>This is the local page on the peer server " + ip.getHostAddress() + " port " + port + "</p></body></html>");
-
+		peer_filenames = new ArrayList<String>();
 		
+		file_table.put("local.html", "<html><head><title>Local Page</title></head><body><p>This is the local page on the peer server " + ip.getHostAddress() + " port " + port + "</p></body></html>");
+		peer_filenames.add("local.html");
+
 		ServerSocket svc = new ServerSocket(port, 5);	// listen on port specified
 		new Thread(new Browser()).start();	// start command line input to request web pages
 
@@ -83,6 +86,7 @@ public class WebServer implements Runnable {
 						}
 						String cont = new String(mainContent);
 						file_table.put(path, cont);
+						peer_filenames.add(path);
 						
 						try {
 							URL url = new URL("http://127.0.0.1:12345");
@@ -107,6 +111,10 @@ public class WebServer implements Runnable {
 						file_table.remove(path);
 					}
 
+				} else if (line.equals("LIST")) {
+					for (String s : peer_filenames) {
+						toClient.writeBytes(s + "\n");
+					}
 				}
 
 			}
@@ -124,7 +132,14 @@ public class WebServer implements Runnable {
 	/* takes file path as argument */
 	public String get(String path) {
 		String contents = file_table.get(path.substring(1));	// start string path after the '/'
-		String http_data = "HTTP/1.1 200 OK\nContent-Length: " + contents.length() + "\n\n" + contents;
+		String http_data;
+		
+		if (contents == null) {
+			http_data = "HTTP/1.1 404 Not Found\nContent-Length: 0\n\n";
+		}
+		else {
+			http_data = "HTTP/1.1 200 OK\nContent-Length: " + contents.length() + "\n\n" + contents;
+		}
 
 		return http_data;
 	}
@@ -142,27 +157,5 @@ public class WebServer implements Runnable {
 		    }
 		    return null;
 	}
-	
-	public Boolean put(String path) {
-		URL url;
-		File f = new File(path);
-		int length = (int) f.length();
-		String contentLength = Integer.toString(length);
-		try {
-			url = new URL("localhost:12345");
-		
-			HttpURLConnection httpCon = (HttpURLConnection) url.openConnection();
-			httpCon.addRequestProperty("Content-Length", contentLength);
-			httpCon.setRequestMethod("PUT");
-			OutputStreamWriter out = new OutputStreamWriter(
-			    httpCon.getOutputStream());
-			out.write("Resource content");
-			out.close();
-			
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		
-		return false;
-	}
+
 }
