@@ -1,10 +1,7 @@
 package p2p;
 
 import java.io.*;
-import java.math.BigInteger;
 import java.net.*;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 public class WebServer implements Runnable {
@@ -35,9 +32,9 @@ public class WebServer implements Runnable {
 		ServerSocket svc = new ServerSocket(port, 5);	// listen on port specified
 		
 		while (true) {
-			Socket conn = svc.accept();	// get a connection from a client
+			Socket connect = svc.accept();	// get a connection from a client
 			//System.out.println("got connection");
-			new Thread(new WebServer(conn)).start();
+			new Thread(new WebServer(connect)).start();
 		}
 	}
 		
@@ -48,7 +45,7 @@ public class WebServer implements Runnable {
 
 			String[] first_header = new String[10];
 
-			String line, command, path, data, clength, content;
+			String line, command, path = null, data = null, clength, content;
 			int contentLength = 0;
 			while ((line = fromClient.readLine()) != null) {
 				if (line.contains(" ")) {
@@ -56,8 +53,13 @@ public class WebServer implements Runnable {
 					
 					if (command.equals("GET")) {
 						first_header = line.split(" ");
+						try {
 						data = get(first_header[1]);
 						toClient.writeBytes(data);
+						} catch (Exception e)
+						{
+							//System.out.println("path:" + path);
+						}
 					} 
 					else if (command.equals("PUT")) 
 					{
@@ -72,12 +74,36 @@ public class WebServer implements Runnable {
 								line = line.substring(line.indexOf(' '));
 								clength = line.trim();
 								contentLength = Integer.parseInt(clength);
+								System.out.println(clength);
 							}
 						}
 						byte[] mainContent = new byte[contentLength];
 						//conn.getInputStream().read(mainContent, 0, contentLength);
-						conn.getInputStream().read(mainContent);
+						/*while(true)
+						{
+							if(conn.getInputStream().available() > 0)
+							{
+								conn.getInputStream().read(mainContent);
+							}
+							else
+							{
+								break;
+							}
+						}*/
+						InputStream blah = conn.getInputStream();
+						
+						while (blah.read(mainContent) != -1)
+						{
+							//reading
+						}
+						
 						String cont = new String(mainContent);
+						
+						/*for (int i = 0; i < mainContent.length; i++)
+						{
+							System.out.println(mainContent[i]);
+						}*/
+						
 						System.out.println(cont);
 						file_table.put("lol.html", cont);
 						
@@ -119,6 +145,7 @@ public class WebServer implements Runnable {
 
 	/* takes file path as argument */
 	public String get(String path) {
+		//System.out.println(path);
 		String contents = file_table.get(path.substring(1));	// start string path after the '/'
 		String http_data = "HTTP/1.1 200 OK\nContent-Length: " + contents.length() + "\n\n" + contents;
 
