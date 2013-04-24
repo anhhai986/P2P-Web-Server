@@ -6,14 +6,13 @@ import java.util.*;
 
 public class WebServer implements Runnable {
 	Socket conn;
-	Dictionary<String, File> file_table;
+	Map<String, String> file_table;
 	
 	WebServer(Socket sock) {
 		this.conn = sock;
-		
+		file_table = new HashMap<String, String>();
 		// for now add temp file index.html until PUT is implemented
-		File tmp_file = new File("./data/index.html");
-		file_table.put("index.html", tmp_file);
+		file_table.put("index.html", "TESTING 123");
 	}
 	
 	public static void main(String args[]) throws Exception {	
@@ -39,13 +38,18 @@ public class WebServer implements Runnable {
 		try {
 			BufferedReader fromClient = new BufferedReader(new InputStreamReader(conn.getInputStream()));
 			DataOutputStream toClient = new DataOutputStream(conn.getOutputStream());
-			String line, command;
+			String line, command, data;
 			
 			while ((line = fromClient.readLine()) != null) {
-				command = line.substring(0, line.indexOf(' '));
-				if (command.equals("GET")) {
-					get();
+				if (line.contains(" ")) {
+					command = line.substring(0, line.indexOf(' '));
+					
+					if (command.equals("GET")) {
+						data = get();
+						System.out.println(data);
+					}
 				}
+				
 			}
 			
 		} catch (IOException e) {
@@ -53,7 +57,7 @@ public class WebServer implements Runnable {
 		}
 	}
 	
-	public File get() {
+	public String get() {
 		
 		return file_table.get("index.html");
 	}

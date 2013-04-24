@@ -1,25 +1,27 @@
 package p2p;
 
-import java.io.BufferedReader;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
+import java.net.*;
 
 public class Browser implements Runnable {
 
 	public void run() {
 		String input;
-		String command;
 		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));	// console input
-
+		
+		Socket conn;
 		try {
+			conn = new Socket("localhost", 12345);
+		
+			BufferedReader fromServer = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+			DataOutputStream toServer = new DataOutputStream(conn.getOutputStream());
+			
 			while (!(input = br.readLine()).equals("quit")) {
-				command = input.substring(0, input.indexOf(' '));
-				
+				toServer.writeBytes(input + '\n');
 				
 			}
-		} catch (IOException e) {
-			System.out.println("Error: Input error");
+		} catch (Exception e) {
+			System.out.println(e);
 		}
 	}
 }
