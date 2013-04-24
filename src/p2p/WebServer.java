@@ -6,8 +6,16 @@ import java.util.*;
 
 public class WebServer implements Runnable {
 	Socket conn;
-	static Map<String, String> file_table;	// maintains all files for a peer. Key is md5 hash filename, value is the file data
+	static Map<String, String> file_table;	// maintains all files for this peer. Key is md5 hash filename, value is the file data
 	static ArrayList<String> peer_filenames;	// list of all filenames this peer is associated with
+	
+	// The peers map is accessed by the int value of the md5 hash of its address in ip:port form
+	// The peer_info list holds the ip:port form of all peers in the group
+	static Map<Integer, ArrayList<String>> peers;	/* hashtable where key is a peer-name hash and value is an arraylist of 
+													   the files that it is responsible for */
+	static ArrayList<String> peer_info;		// list containg the ip and port in a string to send 'ADD' commands to peers
+	
+	static int hash_value;
 	
 	WebServer(Socket sock) {
 		this.conn = sock;
@@ -22,15 +30,26 @@ public class WebServer implements Runnable {
 			System.exit(1);
 		}
 		
+		// Setup for the static tables on this particular web server
 		InetAddress ip = InetAddress.getLocalHost();
 		port = Integer.parseInt(args[1]);
+		// Create tables here
 		file_table = new HashMap<String, String>();
 		peer_filenames = new ArrayList<String>();
+		peers = new HashMap<Integer, ArrayList<String>>();
+		peer_info = new ArrayList<String>();
 		
+		// add initial page 'local.html'
 		String md5 = MD5("local.html");
 		md5 = md5.substring(md5.length() - 4);
 		file_table.put(md5, "<html><head><title>Local Page</title></head><body><p>This is the local page on the peer server " + ip.getHostAddress() + " port " + port + "</p></body></html>");
 		peer_filenames.add("local.html");
+		peer_info.add(ip.getHostAddress() + ":" + port);
+		//TODO Need to add the current host to peers map
+		md5 = MD5(ip.getHostAddress() + ":" + port);
+		md5 = md5.substring(md5.length() - 4);
+		hash_value = hashToInt(md5);
+		
 
 		ServerSocket svc = new ServerSocket(port, 5);	// listen on port specified
 		new Thread(new Browser()).start();	// start command line input to request web pages
@@ -58,7 +77,17 @@ public class WebServer implements Runnable {
 					first_header = line.split(" ");
 					command = first_header[0];
 					
-					if (command.equals("GET")) {
+					if (command.equals("ADD")) {
+						if (first_header[3] != null && first_header[3].equals("norecurse")) {
+							add(first_header[1], first_header[2], false);	// second argument says no recurse
+						} else {
+							add(first_header[1], first_header[2], true);	// second argument says to recurse
+						}
+						
+						// now begin sending ADD to every other host in the group
+						
+					}
+					else if (command.equals("GET")) {
 						first_header = line.split(" ");
 						try {
 						data = get(first_header[1]);
@@ -136,6 +165,79 @@ public class WebServer implements Runnable {
 		}
 	}
 	
+	public void add(String ip, String port, boolean recurse) {
+		// ip:port combination gets md5 hash and uses that to reference a particular peer from now on
+		// the md5 hash gets hashed again in a HashMap
+		String host_md5 = ip + ":" + port;
+		host_md5 = MD5(host_md5);
+		host_md5 = host_md5.substring(host_md5.length() - 4);
+		int host_value = hashToInt(host_md5);
+		
+		// add the new host to the list on this current web server
+		// it currently has no list of files that it is responsible for
+		peers.put(host_value, new ArrayList<String>());
+		
+		if (recurse == true) {
+			String peer_ip, peer_port;
+			for (String s : peer_info) {	// for each peer in the group, do an ADD with norecurse
+				// parse the peer_info string into ip and port
+				peer_ip = s.substring(0, s.indexOf(":"));
+				peer_port = s.substring(s.indexOf(":"), s.length());
+				try {
+					Socket conn = new Socket(ip, Integer.parseInt(port));
+					DataOutputStream toServer = new DataOutputStream(conn.getOutputStream());
+					
+					toServer.writeBytes("ADD " + ip + " " + port + "norecurse");
+				} catch (Exception e) {
+					System.out.println(e);
+				}
+			}
+		}
+		
+		/* now we need to check if new peer is immediate predecessor
+		 	We need to find the current predecessor and see if it has a greater hash value.
+		 	Do this by finding the greatest hash value smaller than this server's hash value.
+		 	Then do a check to see if the added peer has a greater hash value than this. */
+		int max_value=0;
+		for (String s : peer_info) {
+			// we will use peer_value to compare the current predecessor at the end
+			String peer_md5 = MD5(s);
+			peer_md5 = peer_md5.substring(peer_md5.length() - 4);
+			int peer_value = hashToInt(peer_md5);
+			
+			if (peer_value > max_value && peer_value < hash_value) {
+				max_value = peer_value;
+			}
+		}
+		// now that we have the current predecessor's hash_value we can compare it with the host to add
+		if (max_value < host_value) {	// if true, we need to do some put'ing and delete'ing
+			try {
+				Socket conn = new Socket(ip, Integer.parseInt(port));
+				DataOutputStream toServer = new DataOutputStream(conn.getOutputStream());
+				
+				// search every string from this server's list of files
+				for (String s : peer_filenames) {
+					String tmphash = MD5(s);
+					tmphash = tmphash.substring(tmphash.length() - 4);
+					int tmpvalue = hashToInt(tmphash);
+					// need content for the filename
+					String content = file_table.get(tmphash); 	// file_table uses md5 hash as key
+					
+					if (tmpvalue < host_value) {
+						toServer.writeBytes("PUT /" + s + "HTTP/1.1\nContent-Length: " + content.length() + "\n\n" + content);
+					}
+					
+				}
+				
+				
+				
+			} catch (Exception e) {
+				System.out.println(e);
+			}
+		}
+		
+		peer_info.add(host_md5);	// add ip:port to peer_info list
+	}
 
 	/* takes file path as argument */
 	public String get(String path) {
@@ -147,15 +249,8 @@ public class WebServer implements Runnable {
 		System.out.println("GET: " + path);
 		
 		//Get int rep of hash
-		int value = 0;
-		int multiplier = 1000;
-		for(int j = 0; j < path.length(); j++)
-		{
-			value = value + Character.getNumericValue(path.charAt(j)) * multiplier;
-			multiplier = multiplier / 10;
-		}
-		System.out.println("unique value: " + value);
-		
+		int value = hashToInt(path);
+	
 		
 		String contents = file_table.get(path);	// start string path after the '/'
 		if (contents == null) {
@@ -166,6 +261,20 @@ public class WebServer implements Runnable {
 		}
 		
 		return http_data;
+	}
+	
+	public static int hashToInt(String md5_path) {
+		//Get int rep of hash
+		int value = 0;
+		int multiplier = 1000;
+		for(int j = 0; j < md5_path.length(); j++)
+		{
+			value = value + Character.getNumericValue(md5_path.charAt(j)) * multiplier;
+			multiplier = multiplier / 10;
+		}
+		System.out.println("unique value: " + value);
+		
+		return value;
 	}
 
 	public static String MD5(String md5) {
