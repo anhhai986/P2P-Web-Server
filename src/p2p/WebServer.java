@@ -46,6 +46,7 @@ public class WebServer implements Runnable {
 		peer_filenames.add("local.html");
 		peer_info.add(ip.getHostAddress() + ":" + port);
 		//TODO Need to add the current host to peers map
+		
 		md5 = MD5(ip.getHostAddress() + ":" + port);
 		md5 = md5.substring(md5.length() - 4);
 		hash_value = hashToInt(md5);
@@ -124,6 +125,9 @@ public class WebServer implements Runnable {
 												
 						file_table.put(md5, cont);
 						peer_filenames.add(path);
+						// also need to update peers mapping
+						int hash_value = hashToInt(md5);
+						peers.get(hash_value).add(path);
 						
 						try {
 							URL url = new URL("http://127.0.0.1:12345");
@@ -146,6 +150,29 @@ public class WebServer implements Runnable {
 						path = first_header[1].substring(1);
 						
 						file_table.remove(path);
+						// to remove in peer_filenames we need to find the index of the filename to remove
+						int tmp_count = 0;
+						for (String s : peer_filenames) {
+							if (s.equals(path)) {
+								break;
+							}
+							tmp_count++;
+						}
+						peer_filenames.remove(tmp_count);
+						
+						// now remove the index in the list on peers
+						String md5 = MD5(path);
+						md5 = md5.substring(md5.length() - 4);
+						int hash_value = hashToInt(md5);
+						
+						tmp_count = 0;
+						for (String s : peers.get(hash_value)) {
+							if (s.equals(path)) {
+								break;
+							}
+							tmp_count++;
+						}
+						peers.get(hash_value).remove(tmp_count);
 					}
 
 				} else if (line.equals("LIST")) {
