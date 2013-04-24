@@ -9,23 +9,11 @@ import java.util.*;
 
 public class WebServer implements Runnable {
 	Socket conn;
-	Map<String, String> file_table;
+	static Map<String, String> file_table;
 	
-	WebServer(Socket sock, int port) {
-		// get ip address of this host
-		try {
-			InetAddress ip = InetAddress.getLocalHost();
-			this.conn = sock;
-			
-			file_table = new HashMap<String, String>();
-			file_table.put("local.html", "<html><head><title>Local Page</title></head><body><p>This is the local page on the peer server " + ip.getHostAddress() + " port " + port + "</p></body></html>");
-			
-		} catch (UnknownHostException e) {
-			System.out.println(e);
-		}
-				
-		// for now add temp file index.html until PUT is implemented
-			file_table.put("test.html", "<html><head><title>test title</title></head></html>");
+	WebServer(Socket sock) {
+		this.conn = sock;
+
 	}
 	
 	public static void main(String args[]) throws Exception {	
@@ -36,15 +24,20 @@ public class WebServer implements Runnable {
 			System.exit(1);
 		}
 		
+		InetAddress ip = InetAddress.getLocalHost();
+		port = Integer.parseInt(args[1]);
+		file_table = new HashMap<String, String>();
+		file_table.put("local.html", "<html><head><title>Local Page</title></head><body><p>This is the local page on the peer server " + ip.getHostAddress() + " port " + port + "</p></body></html>");
+
+		
 		new Thread(new Browser()).start();	// start command line input to request web pages
 		
-		port = Integer.parseInt(args[1]);
 		ServerSocket svc = new ServerSocket(port, 5);	// listen on port specified
 		
 		while (true) {
 			Socket conn = svc.accept();	// get a connection from a client
-			System.out.println("got connection");
-			new Thread(new WebServer(conn, port)).start();
+			//System.out.println("got connection");
+			new Thread(new WebServer(conn)).start();
 		}
 	}
 		
@@ -81,12 +74,12 @@ public class WebServer implements Runnable {
 								contentLength = Integer.parseInt(clength);
 							}
 						}
-						
 						byte[] mainContent = new byte[contentLength];
 						//conn.getInputStream().read(mainContent, 0, contentLength);
 						conn.getInputStream().read(mainContent);
 						String cont = new String(mainContent);
-						file_table.put("/lol.html", cont);
+						System.out.println(cont);
+						file_table.put("lol.html", cont);
 						
 						try {
 							URL url = new URL("http://127.0.0.1:12345");
