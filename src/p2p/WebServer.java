@@ -45,11 +45,12 @@ public class WebServer implements Runnable {
 		file_table.put(md5, "<html><head><title>Local Page</title></head><body><p>This is the local page on the peer server " + ip.getHostAddress() + " port " + port + "</p></body></html>");
 		peer_filenames.add("local.html");
 		peer_info.add(ip.getHostAddress() + ":" + port);
-		//TODO Need to add the current host to peers map
-		
+
 		md5 = MD5(ip.getHostAddress() + ":" + port);
 		md5 = md5.substring(md5.length() - 4);
 		hash_value = hashToInt(md5);
+		// create an entry in peers for this host
+		peers.put(hash_value, null);
 		
 
 		ServerSocket svc = new ServerSocket(port, 5);	// listen on port specified
@@ -127,7 +128,9 @@ public class WebServer implements Runnable {
 						peer_filenames.add(path);
 						// also need to update peers mapping
 						int hash_value = hashToInt(md5);
+						peers.put(hash_value, new ArrayList<String>());
 						peers.get(hash_value).add(path);
+
 						
 						try {
 							URL url = new URL("http://127.0.0.1:12345");
