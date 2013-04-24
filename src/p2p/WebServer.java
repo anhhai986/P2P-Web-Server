@@ -42,11 +42,19 @@ public class WebServer implements Runnable {
 			String line, command;
 			
 			while ((line = fromClient.readLine()) != null) {
-				command = input.substring(0, input.indexOf(' '));
+				command = line.substring(0, line.indexOf(' '));
+				if (command.equals("GET")) {
+					get();
+				}
 			}
 			
 		} catch (IOException e) {
 			System.out.println(e);
 		}
+	}
+	
+	public File get() {
+		
+		return file_table.get("index.html");
 	}
 }
