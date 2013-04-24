@@ -27,9 +27,9 @@ public class WebServer implements Runnable {
 		file_table.put("local.html", "<html><head><title>Local Page</title></head><body><p>This is the local page on the peer server " + ip.getHostAddress() + " port " + port + "</p></body></html>");
 
 		
-		new Thread(new Browser()).start();	// start command line input to request web pages
-		
 		ServerSocket svc = new ServerSocket(port, 5);	// listen on port specified
+		new Thread(new Browser()).start();	// start command line input to request web pages
+
 		
 		while (true) {
 			Socket connect = svc.accept();	// get a connection from a client
@@ -49,7 +49,9 @@ public class WebServer implements Runnable {
 			int contentLength = 0;
 			while ((line = fromClient.readLine()) != null) {
 				if (line.contains(" ")) {
-					command = line.substring(0, line.indexOf(' '));
+					line.trim();
+					first_header = line.split(" ");
+					command = first_header[0];
 					
 					if (command.equals("GET")) {
 						first_header = line.split(" ");
@@ -60,13 +62,11 @@ public class WebServer implements Runnable {
 						{
 							//System.out.println("path:" + path);
 						}
-					} 
+					}
 					else if (command.equals("PUT")) 
 					{
-						
-						line = line.substring(line.indexOf(' '));
-						path = line.substring(0, line.indexOf(' '));
-						
+						path = first_header[1].substring(1);
+
 						while(!(line = fromClient.readLine()).trim().isEmpty())
 						{
 							if(line.substring(0, line.indexOf(' ')).equals("Content-Length:"))
@@ -74,38 +74,21 @@ public class WebServer implements Runnable {
 								line = line.substring(line.indexOf(' '));
 								clength = line.trim();
 								contentLength = Integer.parseInt(clength);
-								System.out.println(clength);
+								//System.out.println(clength);
 							}
 						}
 						byte[] mainContent = new byte[contentLength];
-						//conn.getInputStream().read(mainContent, 0, contentLength);
-						/*while(true)
-						{
-							if(conn.getInputStream().available() > 0)
-							{
-								conn.getInputStream().read(mainContent);
-							}
-							else
-							{
-								break;
-							}
-						}*/
-						InputStream blah = conn.getInputStream();
-						
-						while (blah.read(mainContent) != -1)
-						{
-							//reading
+
+						/* the read method does not always read in all the bytes, so we need to loop until the buffer is full */
+						for (int x = 0; x < mainContent.length;) {
+								x += conn.getInputStream().read(mainContent, x, mainContent.length-x);
 						}
-						
 						String cont = new String(mainContent);
 						
-						/*for (int i = 0; i < mainContent.length; i++)
-						{
-							System.out.println(mainContent[i]);
-						}*/
+						String md5 = MD5(path);
+						md5 = md5.substring(md5.length() - 4);
 						
-						System.out.println(cont);
-						file_table.put("lol.html", cont);
+						file_table.put(md5, cont);
 						
 						try {
 							URL url = new URL("http://127.0.0.1:12345");
@@ -124,15 +107,16 @@ public class WebServer implements Runnable {
 							e.printStackTrace();
 						}
 
+					} else if (command.equals("DELETE")) {
+						path = first_header[1].substring(1);
+						
+						file_table.remove(path);
 					}
 
 				}
 
 			}
-			/*
-			while((line = fromClient.readLine()) != null) {
-				
-			}*/
+
 			
 			conn.close();
 			return;
@@ -146,7 +130,21 @@ public class WebServer implements Runnable {
 	/* takes file path as argument */
 	public String get(String path) {
 		//System.out.println(path);
-		String contents = file_table.get(path.substring(1));	// start string path after the '/'
+		path = MD5(path.substring(1));
+		path = path.substring(path.length() - 4);
+		
+		System.out.println("GET: " + path);
+		
+		//Get int rep of hash
+		int value = 0;
+		int multiplier = 1000;
+		for(int j = 0; j < path.length(); j++)
+		{
+			value = value + Character.getNumericValue(path.charAt(j)) * multiplier;
+			multiplier = multiplier / 10;
+		}
+		System.out.println(value);
+		String contents = file_table.get(path);	// start string path after the '/'
 		String http_data = "HTTP/1.1 200 OK\nContent-Length: " + contents.length() + "\n\n" + contents;
 
 		return http_data;
