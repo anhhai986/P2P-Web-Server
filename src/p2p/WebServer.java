@@ -30,9 +30,9 @@ public class WebServer implements Runnable {
 		file_table.put("local.html", "<html><head><title>Local Page</title></head><body><p>This is the local page on the peer server " + ip.getHostAddress() + " port " + port + "</p></body></html>");
 
 		
-		new Thread(new Browser()).start();	// start command line input to request web pages
-		
 		ServerSocket svc = new ServerSocket(port, 5);	// listen on port specified
+		new Thread(new Browser()).start();	// start command line input to request web pages
+
 		
 		while (true) {
 			Socket conn = svc.accept();	// get a connection from a client
@@ -52,19 +52,20 @@ public class WebServer implements Runnable {
 			int contentLength = 0;
 			while ((line = fromClient.readLine()) != null) {
 				if (line.contains(" ")) {
-					command = line.substring(0, line.indexOf(' '));
+					line.trim();
+					first_header = line.split(" ");
+					command = first_header[0];
 					
 					if (command.equals("GET")) {
-						first_header = line.split(" ");
-						data = get(first_header[1]);
-						toClient.writeBytes(data);
+						try {
+							data = get(first_header[1]);
+							toClient.writeBytes(data);
+						} catch (Exception e) {}
 					} 
 					else if (command.equals("PUT")) 
 					{
-						
-						line = line.substring(line.indexOf(' '));
-						path = line.substring(0, line.indexOf(' '));
-						
+						path = first_header[1].substring(1);
+
 						while(!(line = fromClient.readLine()).trim().isEmpty())
 						{
 							if(line.substring(0, line.indexOf(' ')).equals("Content-Length:"))
@@ -75,11 +76,13 @@ public class WebServer implements Runnable {
 							}
 						}
 						byte[] mainContent = new byte[contentLength];
-						//conn.getInputStream().read(mainContent, 0, contentLength);
-						conn.getInputStream().read(mainContent);
+
+						/* the read method does not always read in all the bytes, so we need to loop until the buffer is full */
+						for (int x = 0; x < mainContent.length;) {
+								x += conn.getInputStream().read(mainContent, x, mainContent.length-x);
+						}
 						String cont = new String(mainContent);
-						System.out.println(cont);
-						file_table.put("lol.html", cont);
+						file_table.put(path, cont);
 						
 						try {
 							URL url = new URL("http://127.0.0.1:12345");
@@ -98,15 +101,16 @@ public class WebServer implements Runnable {
 							e.printStackTrace();
 						}
 
+					} else if (command.equals("DELETE")) {
+						path = first_header[1].substring(1);
+						
+						file_table.remove(path);
 					}
 
 				}
 
 			}
-			/*
-			while((line = fromClient.readLine()) != null) {
-				
-			}*/
+
 			
 			conn.close();
 			return;
