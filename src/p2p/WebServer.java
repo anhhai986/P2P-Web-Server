@@ -1,16 +1,13 @@
 package p2p;
 
 import java.io.*;
-import java.math.BigInteger;
 import java.net.*;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 public class WebServer implements Runnable {
 	Socket conn;
-	static Map<String, String> file_table;
-	static ArrayList<String> peer_filenames;
+	static Map<String, String> file_table;	// maintains all files for a peer. Key is md5 hash filename, value is the file data
+	static ArrayList<String> peer_filenames;	// list of all filenames this peer is associated with
 	
 	WebServer(Socket sock) {
 		this.conn = sock;
@@ -30,7 +27,9 @@ public class WebServer implements Runnable {
 		file_table = new HashMap<String, String>();
 		peer_filenames = new ArrayList<String>();
 		
-		file_table.put("local.html", "<html><head><title>Local Page</title></head><body><p>This is the local page on the peer server " + ip.getHostAddress() + " port " + port + "</p></body></html>");
+		String md5 = MD5("local.html");
+		md5 = md5.substring(md5.length() - 4);
+		file_table.put(md5, "<html><head><title>Local Page</title></head><body><p>This is the local page on the peer server " + ip.getHostAddress() + " port " + port + "</p></body></html>");
 		peer_filenames.add("local.html");
 
 		ServerSocket svc = new ServerSocket(port, 5);	// listen on port specified
@@ -38,9 +37,9 @@ public class WebServer implements Runnable {
 
 		
 		while (true) {
-			Socket conn = svc.accept();	// get a connection from a client
+			Socket connect = svc.accept();	// get a connection from a client
 			//System.out.println("got connection");
-			new Thread(new WebServer(conn)).start();
+			new Thread(new WebServer(connect)).start();
 		}
 	}
 		
@@ -51,7 +50,7 @@ public class WebServer implements Runnable {
 
 			String[] first_header = new String[10];
 
-			String line, command, path, data, clength, content;
+			String line, command, path = null, data = null, clength, content;
 			int contentLength = 0;
 			while ((line = fromClient.readLine()) != null) {
 				if (line.contains(" ")) {
@@ -60,11 +59,15 @@ public class WebServer implements Runnable {
 					command = first_header[0];
 					
 					if (command.equals("GET")) {
+						first_header = line.split(" ");
 						try {
-							data = get(first_header[1]);
-							toClient.writeBytes(data);
-						} catch (Exception e) {}
-					} 
+						data = get(first_header[1]);
+						toClient.writeBytes(data);
+						} catch (Exception e)
+						{
+							//System.out.println("path:" + path);
+						}
+					}
 					else if (command.equals("PUT")) 
 					{
 						path = first_header[1].substring(1);
@@ -76,6 +79,7 @@ public class WebServer implements Runnable {
 								line = line.substring(line.indexOf(' '));
 								clength = line.trim();
 								contentLength = Integer.parseInt(clength);
+								//System.out.println(clength);
 							}
 						}
 						byte[] mainContent = new byte[contentLength];
@@ -85,7 +89,11 @@ public class WebServer implements Runnable {
 								x += conn.getInputStream().read(mainContent, x, mainContent.length-x);
 						}
 						String cont = new String(mainContent);
-						file_table.put(path, cont);
+						
+						String md5 = MD5(path);
+						md5 = md5.substring(md5.length() - 4);
+												
+						file_table.put(md5, cont);
 						peer_filenames.add(path);
 						
 						try {
@@ -131,20 +139,36 @@ public class WebServer implements Runnable {
 
 	/* takes file path as argument */
 	public String get(String path) {
-		String contents = file_table.get(path.substring(1));	// start string path after the '/'
 		String http_data;
 		
+		path = MD5(path.substring(1));
+		path = path.substring(path.length() - 4);
+		
+		System.out.println("GET: " + path);
+		
+		//Get int rep of hash
+		int value = 0;
+		int multiplier = 1000;
+		for(int j = 0; j < path.length(); j++)
+		{
+			value = value + Character.getNumericValue(path.charAt(j)) * multiplier;
+			multiplier = multiplier / 10;
+		}
+		System.out.println("unique value: " + value);
+		
+		
+		String contents = file_table.get(path);	// start string path after the '/'
 		if (contents == null) {
 			http_data = "HTTP/1.1 404 Not Found\nContent-Length: 0\n\n";
 		}
 		else {
 			http_data = "HTTP/1.1 200 OK\nContent-Length: " + contents.length() + "\n\n" + contents;
 		}
-
+		
 		return http_data;
 	}
 
-	public String MD5(String md5) {
+	public static String MD5(String md5) {
 		   try {
 		        java.security.MessageDigest md = java.security.MessageDigest.getInstance("MD5");
 		        byte[] array = md.digest(md5.getBytes());
