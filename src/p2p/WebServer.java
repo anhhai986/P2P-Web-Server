@@ -1,3 +1,7 @@
+/**
+ * @author Jonathan Ching, Parshant Patel, Yvgeniy Demo
+ * 
+ */
 package p2p;
 
 import java.io.*;
@@ -5,21 +9,23 @@ import java.net.*;
 import java.util.*;
 
 public class WebServer implements Runnable {
+	// the global socket variable
 	Socket conn;
-	static Map<String, String> file_table;	// maintains all files for this peer. Key is md5 hash filename, value is the file data
-	static ArrayList<String> peer_filenames;	// list of all filenames this peer is associated with
-	
+	// maintains all files for this peer. Key is md5 hash filename, value is the file data
+	static Map<String, String> file_table;
+	// list of all filenames this peer is associated with
+	static ArrayList<String> peer_filenames;
 	// The peers map is accessed by the int value of the md5 hash of its address in ip:port form
+	// HashTable where key is a peer-name hash and value is an ArrayList of the files that it is responsible for 
+	static Map<Integer, ArrayList<String>> peers;
+	// list containg the ip and port in a string to send 'ADD' commands to peers
 	// The peer_info list holds the ip:port form of all peers in the group
-	static Map<Integer, ArrayList<String>> peers;	/* hashtable where key is a peer-name hash and value is an arraylist of 
-													   the files that it is responsible for */
-	static ArrayList<String> peer_info;		// list containg the ip and port in a string to send 'ADD' commands to peers
-	
+	static ArrayList<String> peer_info;		
+	// Stores the last 4 characters of MD5 hash that is then converted to an int
 	static int hash_value;
 	
 	WebServer(Socket sock) {
 		this.conn = sock;
-
 	}
 	
 	public static void main(String args[]) throws Exception {	
@@ -33,7 +39,8 @@ public class WebServer implements Runnable {
 		// Setup for the static tables on this particular web server
 		InetAddress ip = InetAddress.getLocalHost();
 		port = Integer.parseInt(args[1]);
-		// Create tables here
+		
+		// Initialize variables
 		file_table = new HashMap<String, String>();
 		peer_filenames = new ArrayList<String>();
 		peers = new HashMap<Integer, ArrayList<String>>();
@@ -110,7 +117,6 @@ public class WebServer implements Runnable {
 								line = line.substring(line.indexOf(' '));
 								clength = line.trim();
 								contentLength = Integer.parseInt(clength);
-								//System.out.println(clength);
 							}
 						}
 						byte[] mainContent = new byte[contentLength];
@@ -121,6 +127,7 @@ public class WebServer implements Runnable {
 						}
 						String cont = new String(mainContent);
 						
+						//hash the path
 						String md5 = MD5(path);
 						md5 = md5.substring(md5.length() - 4);
 												
@@ -183,10 +190,12 @@ public class WebServer implements Runnable {
 						toClient.writeBytes(s + "\n");
 					}
 				}
-
+				else
+				{
+					System.err.println("usage: <command> <arg1> <arg2>");
+				}
 			}
 
-			
 			conn.close();
 			return;
 			

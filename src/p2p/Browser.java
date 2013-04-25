@@ -1,3 +1,7 @@
+/**
+ * @author Jonathan Ching, Parshant Patel, Yvgeniy Demo
+ * 
+ */
 package p2p;
 
 import java.io.*;
