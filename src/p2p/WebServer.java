@@ -158,8 +158,9 @@ public class WebServer implements Runnable {
 
 					} else if (command.equals("DELETE")) {
 						path = first_header[1].substring(1);
-						
-						file_table.remove(path);
+						String tmp_md5 = MD5(path);
+						tmp_md5 = tmp_md5.substring(tmp_md5.length() - 4);
+						file_table.remove(tmp_md5);
 						// to remove in peer_filenames we need to find the index of the filename to remove
 						int tmp_count = 0;
 						for (String s : peer_filenames) {
@@ -250,6 +251,18 @@ public class WebServer implements Runnable {
 		}
 		// now that we have the current predecessor's hash_value we can compare it with the host to add
 		if (max_value < host_value) {	// if true, we need to do some put'ing and delete'ing
+			for (String s : peer_info) {
+				// check that there are no nodes in between our max and host value
+				String peer_md5 = MD5(s);
+				peer_md5 = peer_md5.substring(peer_md5.length() - 4);
+				int peer_value = hashToInt(peer_md5);
+				
+				if (peer_value > max_value && peer_value < host_value) {
+					peer_info.add(host_md5);	// add ip:port to peer_info list
+					return;
+				}
+			}
+			
 			try {
 				Socket conn = new Socket(ip, Integer.parseInt(port));
 				DataOutputStream toServer = new DataOutputStream(conn.getOutputStream());
@@ -264,6 +277,13 @@ public class WebServer implements Runnable {
 					
 					if (tmpvalue < host_value) {
 						toServer.writeBytes("PUT /" + s + "HTTP/1.1\nContent-Length: " + content.length() + "\n\n" + content);
+						System.out.println("PUT'ing into new table");
+						
+						conn = new Socket("localhost", Integer.parseInt(port));
+						toServer = new DataOutputStream(conn.getOutputStream());
+						toServer.writeBytes("DELETE /" + s + "HTTP/1.1\n");
+						System.out.println("DELETE'ing from table");
+						
 					}
 					
 				}
@@ -276,6 +296,7 @@ public class WebServer implements Runnable {
 		}
 		
 		peer_info.add(host_md5);	// add ip:port to peer_info list
+		return;
 	}
 
 	/* takes file path as argument */
@@ -296,6 +317,7 @@ public class WebServer implements Runnable {
 			http_data = "HTTP/1.1 404 Not Found\nContent-Length: 0\n\n";
 		}
 		else {
+			System.out.println(contents);
 			http_data = "HTTP/1.1 200 OK\nContent-Length: " + contents.length() + "\n\n" + contents;
 		}
 		
